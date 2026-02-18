@@ -399,6 +399,18 @@ const Index = () => {
               >
                 + 1cm a tutti
               </button>
+              <button
+                onClick={() => setPieces(pieces.map(p => ({ ...p, canRotate: true })))}
+                className="text-xs px-3 py-1.5 rounded border border-border bg-transparent text-foreground hover:border-primary hover:text-primary transition-all font-mono"
+              >
+                Tinta Unita
+              </button>
+              <button
+                onClick={() => setPieces(pieces.map(p => ({ ...p, canRotate: false })))}
+                className="text-xs px-3 py-1.5 rounded border border-border bg-transparent text-foreground hover:border-primary hover:text-primary transition-all font-mono"
+              >
+                Venature
+              </button>
             </div>
           </div>
         </div>
@@ -425,7 +437,7 @@ const Index = () => {
             onClick={execute}
             className="bg-primary text-primary-foreground border border-primary font-bold text-sm px-10 py-2.5 rounded tracking-[3px] uppercase hover:bg-primary-dim hover:border-primary-dim transition-all font-mono"
           >
-            EXECUTE
+            TAGLIA
           </button>
         </div>
 
