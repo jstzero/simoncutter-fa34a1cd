@@ -6,48 +6,45 @@
 
 @layer base {
   :root {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 87.8%;
+    --background: 0 0% 100%;
+    --foreground: 0 0% 10%;
 
-    --card: 0 0% 6.7%;
-    --card-foreground: 0 0% 87.8%;
+    --card: 0 0% 97%;
+    --card-foreground: 0 0% 10%;
 
-    --popover: 0 0% 6.7%;
-    --popover-foreground: 0 0% 87.8%;
+    --popover: 0 0% 97%;
+    --popover-foreground: 0 0% 10%;
 
-    --primary: 135 100% 50%;
-    --primary-foreground: 0 0% 0%;
-    --primary-dim: 135 100% 40%;
+    --primary: 0 0% 10%;
+    --primary-foreground: 0 0% 100%;
+    --primary-dim: 0 0% 25%;
 
-    --secondary: 0 0% 10.2%;
-    --secondary-foreground: 0 0% 87.8%;
+    --secondary: 0 0% 93%;
+    --secondary-foreground: 0 0% 10%;
 
-    --muted: 0 0% 10.2%;
-    --muted-foreground: 0 0% 40%;
+    --muted: 0 0% 93%;
+    --muted-foreground: 0 0% 45%;
 
-    --accent: 135 100% 50%;
-    --accent-foreground: 0 0% 0%;
+    --accent: 0 0% 10%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 100% 60%;
+    --destructive: 0 75% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 10.2%;
-    --input: 0 0% 5.1%;
-    --ring: 135 100% 50%;
+    --border: 0 0% 85%;
+    --input: 0 0% 97%;
+    --ring: 0 0% 10%;
 
     --radius: 0.375rem;
 
-    --green-bg: 135 100% 50%;
-    --red-bg: 0 100% 60%;
-
-    --sidebar-background: 0 0% 6.7%;
-    --sidebar-foreground: 0 0% 87.8%;
-    --sidebar-primary: 135 100% 50%;
-    --sidebar-primary-foreground: 0 0% 0%;
-    --sidebar-accent: 0 0% 10.2%;
-    --sidebar-accent-foreground: 0 0% 87.8%;
-    --sidebar-border: 0 0% 10.2%;
-    --sidebar-ring: 135 100% 50%;
+    --sidebar-background: 0 0% 97%;
+    --sidebar-foreground: 0 0% 10%;
+    --sidebar-primary: 0 0% 10%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 93%;
+    --sidebar-accent-foreground: 0 0% 10%;
+    --sidebar-border: 0 0% 85%;
+    --sidebar-ring: 0 0% 10%;
   }
 }
 
@@ -67,23 +64,19 @@
 }
 
 @layer utilities {
-  .green-glow {
-    text-shadow: 0 0 20px hsl(135 100% 50% / 0.3);
-  }
-
   .badge-green {
-    background: hsl(135 100% 50% / 0.08);
+    background: hsl(0 0% 10% / 0.08);
     color: hsl(var(--primary));
   }
 
   .badge-red {
-    background: hsl(0 100% 60% / 0.1);
+    background: hsl(0 75% 50% / 0.1);
     color: hsl(var(--destructive));
   }
 
   .unplaced-box {
-    background: hsl(0 100% 60% / 0.1);
-    border: 1px solid hsl(0 100% 60% / 0.3);
+    background: hsl(0 75% 50% / 0.06);
+    border: 1px solid hsl(0 75% 50% / 0.2);
   }
 }
 

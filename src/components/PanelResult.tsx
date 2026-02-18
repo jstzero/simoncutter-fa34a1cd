@@ -1,10 +1,93 @@
-import { forwardRef, useImperativeHandle, useRef, useState, useCallback } from "react";
-import type { UsedPanel } from "@/lib/maxrects";
+import { forwardRef, useImperativeHandle, useRef, useState, useCallback, useMemo } from "react";
+import type { UsedPanel, PlacedPiece } from "@/lib/maxrects";
 
 const COLORS = [
-  "#00ff41", "#00bcd4", "#ff9800", "#e91e63", "#9c27b0", "#ffeb3b",
-  "#4caf50", "#2196f3", "#ff5722", "#795548", "#607d8b", "#cddc39",
+  "#2563eb", "#0891b2", "#ea580c", "#db2777", "#7c3aed", "#ca8a04",
+  "#6366f1", "#0284c7", "#dc2626", "#78716c", "#475569", "#d97706",
 ];
+
+interface GapAnnotation {
+  x1: number; y1: number; x2: number; y2: number;
+  label: string;
+  orientation: 'h' | 'v';
+}
+
+function computeGaps(pieces: PlacedPiece[], panelW: number, panelH: number, scale: number): GapAnnotation[] {
+  const gaps: GapAnnotation[] = [];
+
+  for (const p of pieces) {
+    // Left gap: nearest obstacle to the left
+    let nearestRight = 0;
+    for (const other of pieces) {
+      if (other === p) continue;
+      const otherRight = other.x + other.width;
+      if (otherRight <= p.x) {
+        const yOverlap = Math.min(p.y + p.height, other.y + other.height) - Math.max(p.y, other.y);
+        if (yOverlap > 0 && otherRight > nearestRight) nearestRight = otherRight;
+      }
+    }
+    const leftGap = p.x - nearestRight;
+    if (leftGap > 0) {
+      const midY = (p.y + p.height / 2) * scale;
+      gaps.push({ x1: nearestRight * scale, y1: midY, x2: p.x * scale, y2: midY, label: `${leftGap}`, orientation: 'h' });
+    }
+
+    // Top gap: nearest obstacle above
+    let nearestBottom = 0;
+    for (const other of pieces) {
+      if (other === p) continue;
+      const otherBottom = other.y + other.height;
+      if (otherBottom <= p.y) {
+        const xOverlap = Math.min(p.x + p.width, other.x + other.width) - Math.max(p.x, other.x);
+        if (xOverlap > 0 && otherBottom > nearestBottom) nearestBottom = otherBottom;
+      }
+    }
+    const topGap = p.y - nearestBottom;
+    if (topGap > 0) {
+      const midX = (p.x + p.width / 2) * scale;
+      gaps.push({ x1: midX, y1: nearestBottom * scale, x2: midX, y2: p.y * scale, label: `${topGap}`, orientation: 'v' });
+    }
+
+    // Right gap to panel edge (only if no neighbor to the right)
+    const pRight = p.x + p.width;
+    let hasRightNeighbor = false;
+    for (const other of pieces) {
+      if (other === p) continue;
+      if (other.x >= pRight) {
+        const yOverlap = Math.min(p.y + p.height, other.y + other.height) - Math.max(p.y, other.y);
+        if (yOverlap > 0) { hasRightNeighbor = true; break; }
+      }
+    }
+    if (!hasRightNeighbor && panelW - pRight > 0) {
+      const midY = (p.y + p.height / 2) * scale;
+      gaps.push({ x1: pRight * scale, y1: midY, x2: panelW * scale, y2: midY, label: `${panelW - pRight}`, orientation: 'h' });
+    }
+
+    // Bottom gap to panel edge (only if no neighbor below)
+    const pBottom = p.y + p.height;
+    let hasBottomNeighbor = false;
+    for (const other of pieces) {
+      if (other === p) continue;
+      if (other.y >= pBottom) {
+        const xOverlap = Math.min(p.x + p.width, other.x + other.width) - Math.max(p.x, other.x);
+        if (xOverlap > 0) { hasBottomNeighbor = true; break; }
+      }
+    }
+    if (!hasBottomNeighbor && panelH - pBottom > 0) {
+      const midX = (p.x + p.width / 2) * scale;
+      gaps.push({ x1: midX, y1: pBottom * scale, x2: midX, y2: panelH * scale, label: `${panelH - pBottom}`, orientation: 'v' });
+    }
+  }
+
+  // Deduplicate
+  const unique: GapAnnotation[] = [];
+  for (const g of gaps) {
+    if (!unique.some(u => Math.abs(u.x1 - g.x1) < 2 && Math.abs(u.y1 - g.y1) < 2 && Math.abs(u.x2 - g.x2) < 2 && Math.abs(u.y2 - g.y2) < 2)) {
+      unique.push(g);
+    }
+  }
+  return unique;
+}
 
 export interface PanelResultHandle {
   save: () => void;
@@ -34,6 +117,11 @@ const PanelResult = forwardRef<PanelResultHandle, PanelResultProps>(
     const wasteM2 = panel.wasteAreaMm2 / 1_000_000;
     const usedPrice = usedM2 * pricePerSqm;
     const wastePrice = wasteM2 * pricePerSqm;
+
+    const gapAnnotations = useMemo(
+      () => computeGaps(panel.pieces, panel.stockPanel.width, panel.stockPanel.height, scale),
+      [panel.pieces, panel.stockPanel.width, panel.stockPanel.height, scale]
+    );
 
     const save = useCallback(() => {
       if (!svgRef.current) return;
@@ -114,7 +202,7 @@ const PanelResult = forwardRef<PanelResultHandle, PanelResultProps>(
             height={svgH + 2}
             viewBox={`-1 -1 ${svgW + 2} ${svgH + 2}`}
             xmlns="http://www.w3.org/2000/svg"
-            style={{ background: "#0d0d0d" }}
+            style={{ background: "#ffffff" }}
           >
             {/* Panel outline */}
             <rect
@@ -123,7 +211,7 @@ const PanelResult = forwardRef<PanelResultHandle, PanelResultProps>(
               width={svgW}
               height={svgH}
               fill="none"
-              stroke="#333"
+              stroke="#ccc"
               strokeWidth={1}
             />
             {/* Placed pieces */}
@@ -143,7 +231,7 @@ const PanelResult = forwardRef<PanelResultHandle, PanelResultProps>(
                     y={ry}
                     width={rw}
                     height={rh}
-                    fill={color + "33"}
+                    fill={color + "22"}
                     stroke={color}
                     strokeWidth={1}
                   />
@@ -189,6 +277,56 @@ const PanelResult = forwardRef<PanelResultHandle, PanelResultProps>(
                       )}
                     </>
                   )}
+                </g>
+              );
+            })}
+
+            {/* Distance annotations */}
+            {gapAnnotations.map((g, gi) => {
+              const tickSize = 4;
+              const isH = g.orientation === 'h';
+              const len = isH ? Math.abs(g.x2 - g.x1) : Math.abs(g.y2 - g.y1);
+              if (len < 8) return null;
+
+              const midX = (g.x1 + g.x2) / 2;
+              const midY = (g.y1 + g.y2) / 2;
+              const fontSize = Math.min(9, Math.max(6, len * 0.25));
+
+              return (
+                <g key={`gap-${gi}`}>
+                  <line x1={g.x1} y1={g.y1} x2={g.x2} y2={g.y2} stroke="#999" strokeWidth={0.6} strokeDasharray="3,2" />
+                  {isH ? (
+                    <>
+                      <line x1={g.x1} y1={g.y1 - tickSize} x2={g.x1} y2={g.y1 + tickSize} stroke="#999" strokeWidth={0.6} />
+                      <line x1={g.x2} y1={g.y2 - tickSize} x2={g.x2} y2={g.y2 + tickSize} stroke="#999" strokeWidth={0.6} />
+                    </>
+                  ) : (
+                    <>
+                      <line x1={g.x1 - tickSize} y1={g.y1} x2={g.x1 + tickSize} y2={g.y1} stroke="#999" strokeWidth={0.6} />
+                      <line x1={g.x2 - tickSize} y1={g.y2} x2={g.x2 + tickSize} y2={g.y2} stroke="#999" strokeWidth={0.6} />
+                    </>
+                  )}
+                  <rect
+                    x={midX - fontSize * 1.8}
+                    y={midY - fontSize * 0.65}
+                    width={fontSize * 3.6}
+                    height={fontSize * 1.3}
+                    fill="white"
+                    opacity={0.9}
+                    rx={1}
+                  />
+                  <text
+                    x={midX}
+                    y={midY}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fill="#666"
+                    fontSize={fontSize}
+                    fontFamily="'JetBrains Mono', monospace"
+                    fontWeight="600"
+                  >
+                    {g.label}
+                  </text>
                 </g>
               );
             })}

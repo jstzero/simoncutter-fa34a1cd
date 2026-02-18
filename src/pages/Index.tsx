@@ -41,6 +41,8 @@ const Index = () => {
       ...pieces,
       { width: 400, height: 300, qty: 1, canRotate: true, name: "" },
     ]);
+  const addMargin = () =>
+    setPieces(pieces.map(p => ({ ...p, width: p.width + 10, height: p.height + 10 })));
   const removePiece = (i: number) => {
     if (pieces.length <= 1) return;
     setPieces(pieces.filter((_, idx) => idx !== i));
@@ -207,7 +209,7 @@ const Index = () => {
     <div className="min-h-screen bg-background text-foreground font-mono">
       {/* Header */}
       <header className="sticky top-0 z-10 bg-card border-b border-border px-5 py-3 flex items-center justify-between">
-        <h1 className="text-lg font-bold tracking-[4px] uppercase text-primary green-glow">
+        <h1 className="text-lg font-bold tracking-[4px] uppercase text-primary">
           SimonCutter
         </h1>
         <div className="flex gap-2">
@@ -419,6 +421,14 @@ const Index = () => {
                   </button>
                 </div>
               ))}
+            </div>
+            <div className="mt-3 flex justify-end">
+              <button
+                onClick={addMargin}
+                className="text-xs px-3 py-1.5 rounded border border-border bg-transparent text-foreground hover:border-primary hover:text-primary transition-all font-mono"
+              >
+                + 1cm a tutti
+              </button>
             </div>
           </div>
         </div>
