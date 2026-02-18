@@ -43,6 +43,8 @@ const Index = () => {
     ]);
   const addMargin = () =>
     setPieces(pieces.map(p => ({ ...p, width: p.width + 10, height: p.height + 10 })));
+  const removeMargin = () =>
+    setPieces(pieces.map(p => ({ ...p, width: Math.max(1, p.width - 10), height: Math.max(1, p.height - 10) })));
   const removePiece = (i: number) => {
     if (pieces.length <= 1) return;
     setPieces(pieces.filter((_, idx) => idx !== i));
@@ -240,25 +242,6 @@ const Index = () => {
               </h2>
               <div className="flex gap-2">
                 <button
-                  onClick={exportPanelsCSV}
-                  className="text-xs px-3 py-1.5 rounded border border-border bg-transparent text-foreground hover:border-primary hover:text-primary transition-all font-mono"
-                >
-                  CSV
-                </button>
-                <input
-                  ref={panelCsvRef}
-                  type="file"
-                  accept=".csv"
-                  className="hidden"
-                  onChange={importPanelsCSV}
-                />
-                <button
-                  onClick={() => panelCsvRef.current?.click()}
-                  className="text-xs px-3 py-1.5 rounded border border-border bg-transparent text-foreground hover:border-primary hover:text-primary transition-all font-mono"
-                >
-                  Importa
-                </button>
-                <button
                   onClick={addPanel}
                   className="text-xs px-3 py-1.5 rounded border border-border bg-transparent text-foreground hover:border-primary hover:text-primary transition-all font-mono"
                 >
@@ -323,25 +306,6 @@ const Index = () => {
                 </span>
               </h2>
               <div className="flex gap-2">
-                <button
-                  onClick={exportPiecesCSV}
-                  className="text-xs px-3 py-1.5 rounded border border-border bg-transparent text-foreground hover:border-primary hover:text-primary transition-all font-mono"
-                >
-                  CSV
-                </button>
-                <input
-                  ref={pieceCsvRef}
-                  type="file"
-                  accept=".csv"
-                  className="hidden"
-                  onChange={importPiecesCSV}
-                />
-                <button
-                  onClick={() => pieceCsvRef.current?.click()}
-                  className="text-xs px-3 py-1.5 rounded border border-border bg-transparent text-foreground hover:border-primary hover:text-primary transition-all font-mono"
-                >
-                  Importa
-                </button>
                 <button
                   onClick={addPiece}
                   className="text-xs px-3 py-1.5 rounded border border-border bg-transparent text-foreground hover:border-primary hover:text-primary transition-all font-mono"
@@ -422,7 +386,13 @@ const Index = () => {
                 </div>
               ))}
             </div>
-            <div className="mt-3 flex justify-end">
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                onClick={removeMargin}
+                className="text-xs px-3 py-1.5 rounded border border-border bg-transparent text-foreground hover:border-primary hover:text-primary transition-all font-mono"
+              >
+                − 1cm a tutti
+              </button>
               <button
                 onClick={addMargin}
                 className="text-xs px-3 py-1.5 rounded border border-border bg-transparent text-foreground hover:border-primary hover:text-primary transition-all font-mono"

@@ -16,6 +16,14 @@ function computeGaps(pieces: PlacedPiece[], panelW: number, panelH: number, scal
   const gaps: GapAnnotation[] = [];
 
   for (const p of pieces) {
+    // Piece width dimension (along bottom edge)
+    const bottomY = (p.y + p.height) * scale + 6;
+    gaps.push({ x1: p.x * scale, y1: bottomY, x2: (p.x + p.width) * scale, y2: bottomY, label: `${p.width}`, orientation: 'h' });
+
+    // Piece height dimension (along right edge)
+    const rightX = (p.x + p.width) * scale + 6;
+    gaps.push({ x1: rightX, y1: p.y * scale, x2: rightX, y2: (p.y + p.height) * scale, label: `${p.height}`, orientation: 'v' });
+
     // Left gap: nearest obstacle to the left
     let nearestRight = 0;
     for (const other of pieces) {
@@ -198,9 +206,9 @@ const PanelResult = forwardRef<PanelResultHandle, PanelResultProps>(
         <div className="overflow-x-auto">
           <svg
             ref={svgRef}
-            width={svgW + 2}
-            height={svgH + 2}
-            viewBox={`-1 -1 ${svgW + 2} ${svgH + 2}`}
+            width={svgW + 24}
+            height={svgH + 24}
+            viewBox={`-1 -1 ${svgW + 24} ${svgH + 24}`}
             xmlns="http://www.w3.org/2000/svg"
             style={{ background: "#ffffff" }}
           >
