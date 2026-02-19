@@ -1,104 +1,189 @@
 import { forwardRef, useImperativeHandle, useRef, useState, useCallback, useMemo } from "react";
 import type { UsedPanel, PlacedPiece } from "@/lib/maxrects";
 
-const COLORS = [
-  "#2563eb", "#0891b2", "#ea580c", "#db2777", "#7c3aed", "#ca8a04",
-  "#6366f1", "#0284c7", "#dc2626", "#78716c", "#475569", "#d97706",
-];
-
-interface GapAnnotation {
+// ── Dimension annotation outside pieces (panel-level measurements) ──────────
+interface DimLine {
   x1: number; y1: number; x2: number; y2: number;
   label: string;
   orientation: 'h' | 'v';
 }
 
-function computeGaps(pieces: PlacedPiece[], panelW: number, panelH: number, scale: number): GapAnnotation[] {
-  const gaps: GapAnnotation[] = [];
+/**
+ * Compute dimension lines along panel edges only (right edge = widths, bottom edge = heights).
+ * These are placed outside the SVG piece area to avoid overlapping piece labels.
+ */
+function computePanelDimLines(
+  pieces: PlacedPiece[],
+  panelW: number,
+  panelH: number,
+  scale: number
+): DimLine[] {
+  const lines: DimLine[] = [];
 
+  // For each piece: right-side annotation (height) and bottom annotation (width)
+  // Only the outermost pieces get panel-edge measurements to avoid clutter
   for (const p of pieces) {
-    // Piece width dimension (along bottom edge)
-    const bottomY = (p.y + p.height) * scale + 6;
-    gaps.push({ x1: p.x * scale, y1: bottomY, x2: (p.x + p.width) * scale, y2: bottomY, label: `${p.width}`, orientation: 'h' });
+    const rx = p.x * scale;
+    const ry = p.y * scale;
+    const rw = p.width * scale;
+    const rh = p.height * scale;
 
-    // Piece height dimension (along right edge)
-    const rightX = (p.x + p.width) * scale + 6;
-    gaps.push({ x1: rightX, y1: p.y * scale, x2: rightX, y2: (p.y + p.height) * scale, label: `${p.height}`, orientation: 'v' });
+    // Width annotation along bottom, just below piece bottom edge
+    lines.push({
+      x1: rx, y1: ry + rh,
+      x2: rx + rw, y2: ry + rh,
+      label: `${p.width}`,
+      orientation: 'h',
+    });
 
-    // Left gap: nearest obstacle to the left
-    let nearestRight = 0;
-    for (const other of pieces) {
-      if (other === p) continue;
-      const otherRight = other.x + other.width;
-      if (otherRight <= p.x) {
-        const yOverlap = Math.min(p.y + p.height, other.y + other.height) - Math.max(p.y, other.y);
-        if (yOverlap > 0 && otherRight > nearestRight) nearestRight = otherRight;
-      }
-    }
-    const leftGap = p.x - nearestRight;
-    if (leftGap > 0) {
-      const midY = (p.y + p.height / 2) * scale;
-      gaps.push({ x1: nearestRight * scale, y1: midY, x2: p.x * scale, y2: midY, label: `${leftGap}`, orientation: 'h' });
-    }
+    // Height annotation along right, just right of piece right edge
+    lines.push({
+      x1: rx + rw, y1: ry,
+      x2: rx + rw, y2: ry + rh,
+      label: `${p.height}`,
+      orientation: 'v',
+    });
+  }
 
-    // Top gap: nearest obstacle above
-    let nearestBottom = 0;
-    for (const other of pieces) {
-      if (other === p) continue;
-      const otherBottom = other.y + other.height;
-      if (otherBottom <= p.y) {
-        const xOverlap = Math.min(p.x + p.width, other.x + other.width) - Math.max(p.x, other.x);
-        if (xOverlap > 0 && otherBottom > nearestBottom) nearestBottom = otherBottom;
-      }
-    }
-    const topGap = p.y - nearestBottom;
-    if (topGap > 0) {
-      const midX = (p.x + p.width / 2) * scale;
-      gaps.push({ x1: midX, y1: nearestBottom * scale, x2: midX, y2: p.y * scale, label: `${topGap}`, orientation: 'v' });
-    }
+  // Gap between pieces and panel borders (horizontal — panel width segments)
+  // Collect unique X boundaries across all pieces and panel
+  const xPositions = new Set<number>([0, panelW]);
+  pieces.forEach(p => { xPositions.add(p.x); xPositions.add(p.x + p.width); });
+  const xSorted = Array.from(xPositions).sort((a, b) => a - b);
 
-    // Right gap to panel edge (only if no neighbor to the right)
-    const pRight = p.x + p.width;
-    let hasRightNeighbor = false;
-    for (const other of pieces) {
-      if (other === p) continue;
-      if (other.x >= pRight) {
-        const yOverlap = Math.min(p.y + p.height, other.y + other.height) - Math.max(p.y, other.y);
-        if (yOverlap > 0) { hasRightNeighbor = true; break; }
-      }
-    }
-    if (!hasRightNeighbor && panelW - pRight > 0) {
-      const midY = (p.y + p.height / 2) * scale;
-      gaps.push({ x1: pRight * scale, y1: midY, x2: panelW * scale, y2: midY, label: `${panelW - pRight}`, orientation: 'h' });
-    }
+  for (let i = 0; i < xSorted.length - 1; i++) {
+    const x1 = xSorted[i];
+    const x2 = xSorted[i + 1];
+    const gap = x2 - x1;
+    if (gap <= 0) continue;
 
-    // Bottom gap to panel edge (only if no neighbor below)
-    const pBottom = p.y + p.height;
-    let hasBottomNeighbor = false;
-    for (const other of pieces) {
-      if (other === p) continue;
-      if (other.y >= pBottom) {
-        const xOverlap = Math.min(p.x + p.width, other.x + other.width) - Math.max(p.x, other.x);
-        if (xOverlap > 0) { hasBottomNeighbor = true; break; }
-      }
-    }
-    if (!hasBottomNeighbor && panelH - pBottom > 0) {
-      const midX = (p.x + p.width / 2) * scale;
-      gaps.push({ x1: midX, y1: pBottom * scale, x2: midX, y2: panelH * scale, label: `${panelH - pBottom}`, orientation: 'v' });
+    // Check if this gap is free (no piece spans it fully)
+    const isFreeGap = !pieces.some(p => p.x <= x1 && p.x + p.width >= x2);
+    if (isFreeGap && gap > 5) {
+      lines.push({
+        x1: x1 * scale, y1: panelH * scale,
+        x2: x2 * scale, y2: panelH * scale,
+        label: `${gap}`,
+        orientation: 'h',
+      });
     }
   }
 
-  // Deduplicate
-  const unique: GapAnnotation[] = [];
-  for (const g of gaps) {
-    if (!unique.some(u => Math.abs(u.x1 - g.x1) < 2 && Math.abs(u.y1 - g.y1) < 2 && Math.abs(u.x2 - g.x2) < 2 && Math.abs(u.y2 - g.y2) < 2)) {
-      unique.push(g);
+  // Collect unique Y boundaries
+  const yPositions = new Set<number>([0, panelH]);
+  pieces.forEach(p => { yPositions.add(p.y); yPositions.add(p.y + p.height); });
+  const ySorted = Array.from(yPositions).sort((a, b) => a - b);
+
+  for (let i = 0; i < ySorted.length - 1; i++) {
+    const y1 = ySorted[i];
+    const y2 = ySorted[i + 1];
+    const gap = y2 - y1;
+    if (gap <= 0) continue;
+
+    const isFreeGap = !pieces.some(p => p.y <= y1 && p.y + p.height >= y2);
+    if (isFreeGap && gap > 5) {
+      lines.push({
+        x1: panelW * scale, y1: y1 * scale,
+        x2: panelW * scale, y2: y2 * scale,
+        label: `${gap}`,
+        orientation: 'v',
+      });
     }
   }
-  return unique;
+
+  return lines;
 }
+
+// ── SVG rendering helpers ────────────────────────────────────────────────────
+
+function renderPieceSVG(p: PlacedPiece, pi: number, scale: number): string {
+  const rx = p.x * scale;
+  const ry = p.y * scale;
+  const rw = p.width * scale;
+  const rh = p.height * scale;
+
+  // Font sizes — all text must stay inside piece
+  const maxFontName = Math.min(rw / (Math.max(p.name?.length || 4, 4) * 0.65), rh / 4, 13);
+  const maxFontDim = Math.min(rw / 7, rh / 5, 11);
+  const fontName = Math.max(maxFontName, 5);
+  const fontDim = Math.max(maxFontDim, 4.5);
+
+  // Only show text if piece is large enough
+  const showName = p.name && rw > 30 && rh > 20 && fontName >= 5;
+  const showDim = rw > 25 && rh > 15 && fontDim >= 4.5;
+  const showRotated = p.rotated && rh > (showName ? fontName * 3 : fontDim * 2.5);
+
+  // Alternating light/dark fill for B&W pattern
+  const fillGray = pi % 2 === 0 ? "#f0f0f0" : "#e0e0e0";
+  const strokeColor = "#333";
+  const textColor = "#111";
+
+  // Vertical centering: stack name + dim + rotated symbol
+  const lineCount = (showName ? 1 : 0) + (showDim ? 1 : 0) + (showRotated ? 1 : 0);
+  const lineH = showName ? fontName * 1.5 : fontDim * 1.5;
+  let textY = ry + rh / 2 - ((lineCount - 1) * lineH) / 2;
+
+  let txt = "";
+  if (showName) {
+    txt += `<text x="${rx + rw / 2}" y="${textY}" text-anchor="middle" dominant-baseline="middle"
+      fill="${textColor}" font-size="${fontName}" font-family="'Courier New',monospace" font-weight="700"
+      clip-path="url(#clip-${pi})">${p.name}</text>`;
+    textY += lineH;
+  }
+  if (showDim) {
+    txt += `<text x="${rx + rw / 2}" y="${textY}" text-anchor="middle" dominant-baseline="middle"
+      fill="${textColor}" font-size="${fontDim}" font-family="'Courier New',monospace"
+      clip-path="url(#clip-${pi})">${p.label} ${p.width}×${p.height}</text>`;
+    textY += lineH;
+  }
+  if (showRotated) {
+    txt += `<text x="${rx + rw / 2}" y="${textY}" text-anchor="middle" dominant-baseline="middle"
+      fill="${textColor}" font-size="${fontDim * 0.85}" font-family="'Courier New',monospace"
+      clip-path="url(#clip-${pi})">↻</text>`;
+  }
+
+  return `<g>
+    <clipPath id="clip-${pi}">
+      <rect x="${rx + 1}" y="${ry + 1}" width="${rw - 2}" height="${rh - 2}"/>
+    </clipPath>
+    <rect x="${rx}" y="${ry}" width="${rw}" height="${rh}"
+      fill="${fillGray}" stroke="${strokeColor}" stroke-width="1"/>
+    ${txt}
+  </g>`;
+}
+
+function renderDimLineSVG(d: DimLine, idx: number): string {
+  const isH = d.orientation === 'h';
+  const len = isH ? Math.abs(d.x2 - d.x1) : Math.abs(d.y2 - d.y1);
+  if (len < 6) return "";
+
+  const midX = (d.x1 + d.x2) / 2;
+  const midY = (d.y1 + d.y2) / 2;
+  const fontSize = Math.min(8, Math.max(5.5, len * 0.12));
+  const tickSize = 3.5;
+  const labelW = Math.max(fontSize * (d.label.length * 0.65 + 0.6), fontSize * 2.5);
+  const labelH = fontSize * 1.4;
+
+  const ticks = isH
+    ? `<line x1="${d.x1}" y1="${d.y1 - tickSize}" x2="${d.x1}" y2="${d.y1 + tickSize}" stroke="#888" stroke-width="0.6"/>
+       <line x1="${d.x2}" y1="${d.y2 - tickSize}" x2="${d.x2}" y2="${d.y2 + tickSize}" stroke="#888" stroke-width="0.6"/>`
+    : `<line x1="${d.x1 - tickSize}" y1="${d.y1}" x2="${d.x1 + tickSize}" y2="${d.y1}" stroke="#888" stroke-width="0.6"/>
+       <line x1="${d.x2 - tickSize}" y1="${d.y2}" x2="${d.x2 + tickSize}" y2="${d.y2}" stroke="#888" stroke-width="0.6"/>`;
+
+  return `<g key="dim-${idx}">
+    <line x1="${d.x1}" y1="${d.y1}" x2="${d.x2}" y2="${d.y2}" stroke="#aaa" stroke-width="0.5" stroke-dasharray="3,2"/>
+    ${ticks}
+    <rect x="${midX - labelW / 2}" y="${midY - labelH / 2}" width="${labelW}" height="${labelH}" fill="white" opacity="0.92" rx="1"/>
+    <text x="${midX}" y="${midY}" text-anchor="middle" dominant-baseline="middle"
+      fill="#444" font-size="${fontSize}" font-family="'Courier New',monospace" font-weight="600">${d.label}</text>
+  </g>`;
+}
+
+// ── Public component ─────────────────────────────────────────────────────────
 
 export interface PanelResultHandle {
   save: () => void;
+  getSVGString: (index: number) => string;
 }
 
 interface PanelResultProps {
@@ -112,10 +197,12 @@ const PanelResult = forwardRef<PanelResultHandle, PanelResultProps>(
     const svgRef = useRef<SVGSVGElement>(null);
     const [detailsOpen, setDetailsOpen] = useState(false);
 
+    // Scale to fit display
     const maxDisplayWidth = 800;
+    const MARGIN = 30; // px margin for external dim lines
     const scale = Math.min(
-      maxDisplayWidth / panel.stockPanel.width,
-      400 / panel.stockPanel.height,
+      (maxDisplayWidth - MARGIN * 2) / panel.stockPanel.width,
+      (380 - MARGIN * 2) / panel.stockPanel.height,
       1
     );
     const svgW = panel.stockPanel.width * scale;
@@ -126,15 +213,50 @@ const PanelResult = forwardRef<PanelResultHandle, PanelResultProps>(
     const usedPrice = usedM2 * pricePerSqm;
     const wastePrice = wasteM2 * pricePerSqm;
 
-    const gapAnnotations = useMemo(
-      () => computeGaps(panel.pieces, panel.stockPanel.width, panel.stockPanel.height, scale),
+    const dimLines = useMemo(
+      () => computePanelDimLines(panel.pieces, panel.stockPanel.width, panel.stockPanel.height, scale),
       [panel.pieces, panel.stockPanel.width, panel.stockPanel.height, scale]
     );
 
+    // Build full SVG string (used for PDF export)
+    const buildSVGString = useCallback((svgScale?: number): string => {
+      const s = svgScale ?? scale;
+      const W = panel.stockPanel.width * s;
+      const H = panel.stockPanel.height * s;
+      const M = 28;
+      const totalW = W + M * 2;
+      const totalH = H + M * 2;
+
+      const dims = computePanelDimLines(panel.pieces, panel.stockPanel.width, panel.stockPanel.height, s);
+
+      const piecesHTML = panel.pieces
+        .map((p, pi) => renderPieceSVG(p, pi, s))
+        .join("\n");
+
+      const dimsHTML = dims
+        .map((d, di) => {
+          // Offset by margin
+          const shifted: DimLine = {
+            ...d,
+            x1: d.x1 + M, y1: d.y1 + M,
+            x2: d.x2 + M, y2: d.y2 + M,
+          };
+          return renderDimLineSVG(shifted, di);
+        })
+        .join("\n");
+
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}" style="background:white">
+  <!-- Panel outline -->
+  <rect x="${M}" y="${M}" width="${W}" height="${H}" fill="none" stroke="#999" stroke-width="1"/>
+  <!-- Pieces -->
+  <g>${piecesHTML}</g>
+  <!-- Dimension lines -->
+  <g>${dimsHTML}</g>
+</svg>`;
+    }, [panel, scale]);
+
     const save = useCallback(() => {
-      if (!svgRef.current) return;
-      const serializer = new XMLSerializer();
-      const svgStr = serializer.serializeToString(svgRef.current);
+      const svgStr = buildSVGString();
       const blob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -142,9 +264,21 @@ const PanelResult = forwardRef<PanelResultHandle, PanelResultProps>(
       a.download = `pannello-${index + 1}.svg`;
       a.click();
       URL.revokeObjectURL(url);
-    }, [index]);
+    }, [buildSVGString, index]);
 
-    useImperativeHandle(ref, () => ({ save }));
+    const getSVGString = useCallback((idx: number): string => {
+      // For PDF we use a fixed scale fitting A4 landscape (roughly 240mm x 170mm usable)
+      const pdfMaxW = 700; // px approx
+      const pdfMaxH = 460;
+      const pdfScale = Math.min(
+        pdfMaxW / panel.stockPanel.width,
+        pdfMaxH / panel.stockPanel.height,
+        1.2
+      );
+      return buildSVGString(pdfScale);
+    }, [buildSVGString, panel]);
+
+    useImperativeHandle(ref, () => ({ save, getSVGString }));
 
     return (
       <div className="bg-card border border-border rounded-lg p-4 mb-4">
@@ -157,8 +291,10 @@ const PanelResult = forwardRef<PanelResultHandle, PanelResultProps>(
           </h3>
           <div className="flex items-center gap-2">
             <span
-              className={`text-xs font-semibold px-2.5 py-0.5 rounded ${
-                parseFloat(panel.usagePercent) >= 80 ? "badge-green" : "badge-red"
+              className={`text-xs font-semibold px-2.5 py-0.5 rounded border ${
+                parseFloat(panel.usagePercent) >= 80
+                  ? "border-foreground text-foreground"
+                  : "border-destructive text-destructive"
               }`}
             >
               {panel.usagePercent}% utilizzato
@@ -176,19 +312,15 @@ const PanelResult = forwardRef<PanelResultHandle, PanelResultProps>(
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3 text-xs">
           <div className="bg-secondary/50 rounded p-2">
             <div className="text-muted-foreground">Utilizzato</div>
-            <div className="text-primary font-bold">{panel.usagePercent}%</div>
+            <div className="text-foreground font-bold">{panel.usagePercent}%</div>
             <div className="text-muted-foreground">{usedM2.toFixed(4)} m²</div>
-            {pricePerSqm > 0 && (
-              <div className="text-primary">€{usedPrice.toFixed(2)}</div>
-            )}
+            {pricePerSqm > 0 && <div className="text-foreground">€{usedPrice.toFixed(2)}</div>}
           </div>
           <div className="bg-secondary/50 rounded p-2">
             <div className="text-muted-foreground">Perso</div>
             <div className="text-destructive font-bold">{panel.wastePercent}%</div>
             <div className="text-muted-foreground">{wasteM2.toFixed(4)} m²</div>
-            {pricePerSqm > 0 && (
-              <div className="text-destructive">€{wastePrice.toFixed(2)}</div>
-            )}
+            {pricePerSqm > 0 && <div className="text-destructive">€{wastePrice.toFixed(2)}</div>}
           </div>
           <div className="bg-secondary/50 rounded p-2">
             <div className="text-muted-foreground">Pezzi</div>
@@ -206,134 +338,155 @@ const PanelResult = forwardRef<PanelResultHandle, PanelResultProps>(
         <div className="overflow-x-auto">
           <svg
             ref={svgRef}
-            width={svgW + 24}
-            height={svgH + 24}
-            viewBox={`-1 -1 ${svgW + 24} ${svgH + 24}`}
+            width={svgW + MARGIN * 2}
+            height={svgH + MARGIN * 2}
+            viewBox={`0 0 ${svgW + MARGIN * 2} ${svgH + MARGIN * 2}`}
             xmlns="http://www.w3.org/2000/svg"
             style={{ background: "#ffffff" }}
           >
             {/* Panel outline */}
             <rect
-              x={0}
-              y={0}
+              x={MARGIN}
+              y={MARGIN}
               width={svgW}
               height={svgH}
               fill="none"
-              stroke="#ccc"
+              stroke="#999"
               strokeWidth={1}
             />
+
             {/* Placed pieces */}
             {panel.pieces.map((p, pi) => {
-              const color = COLORS[pi % COLORS.length];
-              const rx = p.x * scale;
-              const ry = p.y * scale;
+              const rx = p.x * scale + MARGIN;
+              const ry = p.y * scale + MARGIN;
               const rw = p.width * scale;
               const rh = p.height * scale;
-              const fontSize = Math.min(rw / 8, rh / 4, 12);
-              const showText = fontSize >= 5;
+
+              const maxFontName = Math.min(rw / (Math.max(p.name?.length || 4, 4) * 0.65), rh / 4, 13);
+              const maxFontDim = Math.min(rw / 7, rh / 5, 11);
+              const fontName = Math.max(maxFontName, 5);
+              const fontDim = Math.max(maxFontDim, 4.5);
+
+              const showName = !!p.name && rw > 30 && rh > 20 && fontName >= 5;
+              const showDim = rw > 25 && rh > 15 && fontDim >= 4.5;
+              const showRotated = p.rotated && rh > (showName ? fontName * 3 : fontDim * 2.5);
+
+              const fillGray = pi % 2 === 0 ? "#f0f0f0" : "#e0e0e0";
+
+              const lineCount = (showName ? 1 : 0) + (showDim ? 1 : 0) + (showRotated ? 1 : 0);
+              const lineH = showName ? fontName * 1.5 : fontDim * 1.5;
+              let textY = ry + rh / 2 - ((lineCount - 1) * lineH) / 2;
 
               return (
                 <g key={pi}>
+                  <clipPath id={`clip-${pi}-${index}`}>
+                    <rect x={rx + 1} y={ry + 1} width={rw - 2} height={rh - 2} />
+                  </clipPath>
                   <rect
-                    x={rx}
-                    y={ry}
-                    width={rw}
-                    height={rh}
-                    fill={color + "22"}
-                    stroke={color}
+                    x={rx} y={ry} width={rw} height={rh}
+                    fill={fillGray}
+                    stroke="#333"
                     strokeWidth={1}
                   />
-                  {showText && (
-                    <>
-                      {p.name && (
-                        <text
-                          x={rx + rw / 2}
-                          y={ry + rh / 2 - fontSize * 0.8}
-                          textAnchor="middle"
-                          dominantBaseline="middle"
-                          fill={color}
-                          fontSize={fontSize}
-                          fontFamily="'JetBrains Mono', monospace"
-                          fontWeight="700"
-                        >
-                          {p.name}
-                        </text>
-                      )}
+                  {showName && (() => {
+                    const y = textY;
+                    textY += lineH;
+                    return (
                       <text
-                        x={rx + rw / 2}
-                        y={ry + rh / 2 + (p.name ? fontSize * 0.5 : 0)}
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fill={color}
-                        fontSize={fontSize * 0.85}
-                        fontFamily="'JetBrains Mono', monospace"
+                        key="name"
+                        x={rx + rw / 2} y={y}
+                        textAnchor="middle" dominantBaseline="middle"
+                        fill="#111" fontSize={fontName}
+                        fontFamily="'Courier New',monospace" fontWeight="700"
+                        clipPath={`url(#clip-${pi}-${index})`}
+                      >
+                        {p.name}
+                      </text>
+                    );
+                  })()}
+                  {showDim && (() => {
+                    const y = textY;
+                    textY += lineH;
+                    return (
+                      <text
+                        key="dim"
+                        x={rx + rw / 2} y={y}
+                        textAnchor="middle" dominantBaseline="middle"
+                        fill="#111" fontSize={fontDim}
+                        fontFamily="'Courier New',monospace"
+                        clipPath={`url(#clip-${pi}-${index})`}
                       >
                         {p.label} {p.width}×{p.height}
                       </text>
-                      {p.rotated && (
-                        <text
-                          x={rx + rw / 2}
-                          y={ry + rh / 2 + fontSize * (p.name ? 1.4 : 1)}
-                          textAnchor="middle"
-                          dominantBaseline="middle"
-                          fill={color}
-                          fontSize={fontSize * 0.7}
-                          fontFamily="'JetBrains Mono', monospace"
-                        >
-                          ↻
-                        </text>
-                      )}
-                    </>
-                  )}
+                    );
+                  })()}
+                  {showRotated && (() => {
+                    const y = textY;
+                    return (
+                      <text
+                        key="rot"
+                        x={rx + rw / 2} y={y}
+                        textAnchor="middle" dominantBaseline="middle"
+                        fill="#111" fontSize={fontDim * 0.85}
+                        fontFamily="'Courier New',monospace"
+                        clipPath={`url(#clip-${pi}-${index})`}
+                      >
+                        ↻
+                      </text>
+                    );
+                  })()}
                 </g>
               );
             })}
 
-            {/* Distance annotations */}
-            {gapAnnotations.map((g, gi) => {
-              const tickSize = 4;
-              const isH = g.orientation === 'h';
-              const len = isH ? Math.abs(g.x2 - g.x1) : Math.abs(g.y2 - g.y1);
-              if (len < 8) return null;
+            {/* Dimension lines (outside pieces, along edges) */}
+            {dimLines.map((d, di) => {
+              const shifted: DimLine = {
+                ...d,
+                x1: d.x1 + MARGIN, y1: d.y1 + MARGIN,
+                x2: d.x2 + MARGIN, y2: d.y2 + MARGIN,
+              };
+              const isH = shifted.orientation === 'h';
+              const len = isH ? Math.abs(shifted.x2 - shifted.x1) : Math.abs(shifted.y2 - shifted.y1);
+              if (len < 6) return null;
 
-              const midX = (g.x1 + g.x2) / 2;
-              const midY = (g.y1 + g.y2) / 2;
-              const fontSize = Math.min(9, Math.max(6, len * 0.25));
+              const midX = (shifted.x1 + shifted.x2) / 2;
+              const midY = (shifted.y1 + shifted.y2) / 2;
+              const fontSize = Math.min(8, Math.max(5.5, len * 0.12));
+              const tickSize = 3.5;
+              const labelW = Math.max(fontSize * (d.label.length * 0.65 + 0.6), fontSize * 2.5);
+              const labelH = fontSize * 1.4;
 
               return (
-                <g key={`gap-${gi}`}>
-                  <line x1={g.x1} y1={g.y1} x2={g.x2} y2={g.y2} stroke="#999" strokeWidth={0.6} strokeDasharray="3,2" />
+                <g key={`dim-${di}`}>
+                  <line
+                    x1={shifted.x1} y1={shifted.y1}
+                    x2={shifted.x2} y2={shifted.y2}
+                    stroke="#aaa" strokeWidth={0.5} strokeDasharray="3,2"
+                  />
                   {isH ? (
                     <>
-                      <line x1={g.x1} y1={g.y1 - tickSize} x2={g.x1} y2={g.y1 + tickSize} stroke="#999" strokeWidth={0.6} />
-                      <line x1={g.x2} y1={g.y2 - tickSize} x2={g.x2} y2={g.y2 + tickSize} stroke="#999" strokeWidth={0.6} />
+                      <line x1={shifted.x1} y1={shifted.y1 - tickSize} x2={shifted.x1} y2={shifted.y1 + tickSize} stroke="#888" strokeWidth={0.6} />
+                      <line x1={shifted.x2} y1={shifted.y2 - tickSize} x2={shifted.x2} y2={shifted.y2 + tickSize} stroke="#888" strokeWidth={0.6} />
                     </>
                   ) : (
                     <>
-                      <line x1={g.x1 - tickSize} y1={g.y1} x2={g.x1 + tickSize} y2={g.y1} stroke="#999" strokeWidth={0.6} />
-                      <line x1={g.x2 - tickSize} y1={g.y2} x2={g.x2 + tickSize} y2={g.y2} stroke="#999" strokeWidth={0.6} />
+                      <line x1={shifted.x1 - tickSize} y1={shifted.y1} x2={shifted.x1 + tickSize} y2={shifted.y1} stroke="#888" strokeWidth={0.6} />
+                      <line x1={shifted.x2 - tickSize} y1={shifted.y2} x2={shifted.x2 + tickSize} y2={shifted.y2} stroke="#888" strokeWidth={0.6} />
                     </>
                   )}
                   <rect
-                    x={midX - fontSize * 1.8}
-                    y={midY - fontSize * 0.65}
-                    width={fontSize * 3.6}
-                    height={fontSize * 1.3}
-                    fill="white"
-                    opacity={0.9}
-                    rx={1}
+                    x={midX - labelW / 2} y={midY - labelH / 2}
+                    width={labelW} height={labelH}
+                    fill="white" opacity={0.92} rx={1}
                   />
                   <text
-                    x={midX}
-                    y={midY}
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    fill="#666"
-                    fontSize={fontSize}
-                    fontFamily="'JetBrains Mono', monospace"
-                    fontWeight="600"
+                    x={midX} y={midY}
+                    textAnchor="middle" dominantBaseline="middle"
+                    fill="#444" fontSize={fontSize}
+                    fontFamily="'Courier New',monospace" fontWeight="600"
                   >
-                    {g.label}
+                    {d.label}
                   </text>
                 </g>
               );
@@ -364,19 +517,14 @@ const PanelResult = forwardRef<PanelResultHandle, PanelResultProps>(
               </thead>
               <tbody>
                 {panel.pieces.map((p, pi) => (
-                  <tr
-                    key={pi}
-                    className="hover:bg-secondary/30"
-                  >
+                  <tr key={pi} className="hover:bg-secondary/30">
                     <td className="p-1.5 border-b border-border">{p.label}</td>
                     <td className="p-1.5 border-b border-border">{p.name || "—"}</td>
                     <td className="p-1.5 border-b border-border">{p.x}</td>
                     <td className="p-1.5 border-b border-border">{p.y}</td>
                     <td className="p-1.5 border-b border-border">{p.width}</td>
                     <td className="p-1.5 border-b border-border">{p.height}</td>
-                    <td className="p-1.5 border-b border-border">
-                      {p.rotated ? "Sì" : "No"}
-                    </td>
+                    <td className="p-1.5 border-b border-border">{p.rotated ? "Sì" : "No"}</td>
                   </tr>
                 ))}
               </tbody>
