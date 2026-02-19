@@ -71,11 +71,6 @@ const Index = () => {
     panelResultRefs.current = [];
   }, [panels, pieces]);
 
-  // Save all
-  const saveAll = () => {
-    panelResultRefs.current.forEach((r) => r?.save());
-  };
-
   // CSV Import Panels
   const importPanelsCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -97,7 +92,7 @@ const Index = () => {
     e.target.value = "";
   };
 
-  // CSV Import Pieces
+  // CSV Import Pieces (format: Larghezza,Altezza,Quota,nome)
   const importPiecesCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -128,70 +123,130 @@ const Index = () => {
     e.target.value = "";
   };
 
-  // CSV Export
-  const exportPanelsCSV = () => {
-    const csv = panels
-      .map((p) => `${p.width},${p.height},${p.qty}`)
-      .join("\n");
-    downloadFile(csv, "pannelli.csv", "text/csv");
-  };
-  const exportPiecesCSV = () => {
-    const csv = pieces
-      .map((p) => `${p.width},${p.height},${p.qty},${p.name}`)
-      .join("\n");
-    downloadFile(csv, "pezzi.csv", "text/csv");
-  };
-
-  const downloadFile = (content: string, filename: string, type: string) => {
-    const blob = new Blob([content], { type });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // PDF
-  const openPDF = () => {
+  // PDF Save all — one panel per page, landscape
+  const saveAll = useCallback(() => {
     if (!result) return;
+
     const pw = window.open("", "_blank");
     if (!pw) return;
-    let h = `<html><head><title>SimonCutter - Lista di Taglio</title>
-      <style>body{font-family:monospace;padding:20px}table{width:100%;border-collapse:collapse;margin:10px 0}
-      th,td{text-align:left;padding:4px 8px;border:1px solid #ccc;font-size:12px}
-      th{background:#eee}.no-print{margin:20px 0}
-      @media print{.no-print{display:none}}</style></head><body>
-      <h1>Lista di Taglio - SimonCutter</h1>
-      <p><strong>${result.totalPanels}</strong> Pannelli utilizzati | 
-      <strong>${result.averageUsage}%</strong> Utilizzo medio</p>`;
+
+    const now = new Date();
+    const dateStr = now.toLocaleDateString("it-IT") + ", " + now.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+
+    // Build SVG string for each panel
+    const panelSVGs = panelResultRefs.current
+      .map((r, i) => {
+        if (!r) return null;
+        return r.getSVGString(i);
+      })
+      .filter(Boolean) as string[];
+
+    let html = `<!DOCTYPE html><html><head>
+<meta charset="utf-8"/>
+<title>SimonCutter — Pannelli</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Courier New', monospace; background: white; }
+  .page {
+    width: 297mm;
+    height: 210mm;
+    position: relative;
+    page-break-after: always;
+    overflow: hidden;
+    padding: 8mm 8mm 8mm 8mm;
+    display: flex;
+    flex-direction: column;
+  }
+  .page:last-child { page-break-after: avoid; }
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 9pt;
+    color: #555;
+    margin-bottom: 4mm;
+    flex-shrink: 0;
+  }
+  .panel-title {
+    font-size: 11pt;
+    font-weight: bold;
+    color: #111;
+  }
+  .svg-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .svg-container svg {
+    max-width: 100%;
+    max-height: 100%;
+  }
+  .page-footer {
+    font-size: 8pt;
+    color: #888;
+    display: flex;
+    justify-content: space-between;
+    margin-top: 3mm;
+    flex-shrink: 0;
+  }
+  @media print {
+    @page { size: A4 landscape; margin: 0; }
+    body { margin: 0; }
+  }
+  .no-print {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    z-index: 999;
+    display: flex;
+    gap: 8px;
+  }
+  .no-print button {
+    padding: 8px 16px;
+    background: #111;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-family: monospace;
+    font-size: 12px;
+  }
+</style>
+</head><body>
+<div class="no-print">
+  <button onclick="window.print()">🖨 Stampa / Salva PDF</button>
+  <button onclick="window.close()">✕ Chiudi</button>
+</div>`;
 
     result.usedPanels.forEach((panel, i) => {
-      const usedM2 = (panel.usedAreaMm2 / 1_000_000).toFixed(4);
-      const wasteM2 = (panel.wasteAreaMm2 / 1_000_000).toFixed(4);
-      h += `<h2>Pannello ${i + 1} - ${panel.stockPanel.width}×${panel.stockPanel.height} 
-        (Utilizzo: ${panel.usagePercent}% | ${usedM2} m² | Spreco: ${panel.wastePercent}% | ${wasteM2} m²)</h2>
-        <table><tr><th>Pezzo</th><th>Nome</th><th>X</th><th>Y</th><th>Larghezza</th><th>Altezza</th><th>Ruotato</th></tr>`;
-      panel.pieces.forEach((p) => {
-        h += `<tr><td>${p.label}</td><td>${p.name || "—"}</td><td>${p.x}</td><td>${p.y}</td><td>${p.width}</td><td>${p.height}</td><td>${p.rotated ? "Sì" : "No"}</td></tr>`;
-      });
-      h += "</table>";
+      const svgContent = panelSVGs[i] || "";
+      const usedM2 = (panel.usedAreaMm2 / 1_000_000).toFixed(3);
+      const wasteM2 = (panel.wasteAreaMm2 / 1_000_000).toFixed(3);
+      const pageNum = `${i + 1}/${result.usedPanels.length}`;
+
+      html += `
+<div class="page">
+  <div class="page-header">
+    <span>${dateStr}</span>
+    <span class="panel-title">Pannello ${i + 1} — ${panel.stockPanel.width}×${panel.stockPanel.height} mm</span>
+    <span>SimonCutter.svg</span>
+  </div>
+  <div class="svg-container">${svgContent}</div>
+  <div class="page-footer">
+    <span>Pezzi: ${panel.pieces.length} | Utilizzo: ${panel.usagePercent}% (${usedM2} m²) | Spreco: ${panel.wastePercent}% (${wasteM2} m²)</span>
+    <span>${pageNum}</span>
+  </div>
+</div>`;
     });
 
-    if (result.unplacedPieces.length > 0) {
-      h += "<h2 style='color:red'>Pezzi non allocati</h2><ul>";
-      result.unplacedPieces.forEach((u) => {
-        h += `<li>${u.piece.width}×${u.piece.height}${u.piece.name ? ` (${u.piece.name})` : ""} - ${u.remaining} pz</li>`;
-      });
-      h += "</ul>";
-    }
-
-    h += `<div class="no-print"><button onclick="window.print()">Stampa PDF</button></div></body></html>`;
-    pw.document.write(h);
+    html += `</body></html>`;
+    pw.document.write(html);
     pw.document.close();
-  };
+    setTimeout(() => pw.print(), 500);
+  }, [result]);
 
-  // Stats calculations
+  // Stats
   const totalUsedM2 = result
     ? result.usedPanels.reduce((s, p) => s + p.usedAreaMm2, 0) / 1_000_000
     : 0;
@@ -214,21 +269,6 @@ const Index = () => {
         <h1 className="text-lg font-bold tracking-[4px] uppercase text-primary">
           SimonCutter
         </h1>
-        <div className="flex gap-2">
-          <button
-            onClick={exportPiecesCSV}
-            className="text-xs px-3.5 py-1.5 rounded border border-border bg-transparent text-foreground hover:border-primary hover:text-primary transition-all font-mono"
-          >
-            CSV
-          </button>
-          <button
-            onClick={openPDF}
-            disabled={!result}
-            className="text-xs px-3.5 py-1.5 rounded border border-border bg-transparent text-foreground hover:border-primary hover:text-primary transition-all font-mono disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            PDF
-          </button>
-        </div>
       </header>
 
       <main className="max-w-[1200px] mx-auto px-4 py-6">
@@ -237,10 +277,21 @@ const Index = () => {
           {/* Panels card */}
           <div className="bg-card border border-border rounded-lg p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-[15px] font-bold">
-                Pannelli disponibili
-              </h2>
+              <h2 className="text-[15px] font-bold">Pannelli disponibili</h2>
               <div className="flex gap-2">
+                <input
+                  ref={panelCsvRef}
+                  type="file"
+                  accept=".csv,.txt"
+                  onChange={importPanelsCSV}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => panelCsvRef.current?.click()}
+                  className="text-xs px-3 py-1.5 rounded border border-border bg-transparent text-foreground hover:border-primary hover:text-primary transition-all font-mono"
+                >
+                  CSV
+                </button>
                 <button
                   onClick={addPanel}
                   className="text-xs px-3 py-1.5 rounded border border-border bg-transparent text-foreground hover:border-primary hover:text-primary transition-all font-mono"
@@ -264,25 +315,19 @@ const Index = () => {
                 <input
                   type="number"
                   value={p.width}
-                  onChange={(e) =>
-                    updatePanel(i, "width", parseInt(e.target.value))
-                  }
+                  onChange={(e) => updatePanel(i, "width", parseInt(e.target.value))}
                   className="bg-input border border-border rounded px-2 py-1.5 text-[13px] text-foreground outline-none focus:border-primary w-full font-mono"
                 />
                 <input
                   type="number"
                   value={p.height}
-                  onChange={(e) =>
-                    updatePanel(i, "height", parseInt(e.target.value))
-                  }
+                  onChange={(e) => updatePanel(i, "height", parseInt(e.target.value))}
                   className="bg-input border border-border rounded px-2 py-1.5 text-[13px] text-foreground outline-none focus:border-primary w-full font-mono"
                 />
                 <input
                   type="number"
                   value={p.qty}
-                  onChange={(e) =>
-                    updatePanel(i, "qty", parseInt(e.target.value))
-                  }
+                  onChange={(e) => updatePanel(i, "qty", parseInt(e.target.value))}
                   className="bg-input border border-border rounded px-2 py-1.5 text-[13px] text-foreground outline-none focus:border-primary w-full font-mono"
                 />
                 <button
@@ -306,6 +351,19 @@ const Index = () => {
                 </span>
               </h2>
               <div className="flex gap-2">
+                <input
+                  ref={pieceCsvRef}
+                  type="file"
+                  accept=".csv,.txt"
+                  onChange={importPiecesCSV}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => pieceCsvRef.current?.click()}
+                  className="text-xs px-3 py-1.5 rounded border border-border bg-transparent text-foreground hover:border-primary hover:text-primary transition-all font-mono"
+                >
+                  CSV
+                </button>
                 <button
                   onClick={addPiece}
                   className="text-xs px-3 py-1.5 rounded border border-border bg-transparent text-foreground hover:border-primary hover:text-primary transition-all font-mono"
@@ -343,31 +401,23 @@ const Index = () => {
                   <input
                     type="number"
                     value={p.width}
-                    onChange={(e) =>
-                      updatePiece(i, "width", parseInt(e.target.value))
-                    }
+                    onChange={(e) => updatePiece(i, "width", parseInt(e.target.value))}
                     className="bg-input border border-border rounded px-2 py-1.5 text-[13px] text-foreground outline-none focus:border-primary w-full font-mono"
                   />
                   <input
                     type="number"
                     value={p.height}
-                    onChange={(e) =>
-                      updatePiece(i, "height", parseInt(e.target.value))
-                    }
+                    onChange={(e) => updatePiece(i, "height", parseInt(e.target.value))}
                     className="bg-input border border-border rounded px-2 py-1.5 text-[13px] text-foreground outline-none focus:border-primary w-full font-mono"
                   />
                   <input
                     type="number"
                     value={p.qty}
-                    onChange={(e) =>
-                      updatePiece(i, "qty", parseInt(e.target.value))
-                    }
+                    onChange={(e) => updatePiece(i, "qty", parseInt(e.target.value))}
                     className="bg-input border border-border rounded px-2 py-1.5 text-[13px] text-foreground outline-none focus:border-primary w-full font-mono"
                   />
                   <button
-                    onClick={() =>
-                      updatePiece(i, "canRotate", !p.canRotate)
-                    }
+                    onClick={() => updatePiece(i, "canRotate", !p.canRotate)}
                     className={`w-9 h-8 flex items-center justify-center rounded border text-sm transition-all cursor-pointer ${
                       p.canRotate
                         ? "bg-primary/10 border-primary text-primary"
@@ -386,7 +436,7 @@ const Index = () => {
                 </div>
               ))}
             </div>
-            <div className="mt-3 flex justify-end gap-2">
+            <div className="mt-3 flex justify-end gap-2 flex-wrap">
               <button
                 onClick={removeMargin}
                 className="text-xs px-3 py-1.5 rounded border border-border bg-transparent text-foreground hover:border-primary hover:text-primary transition-all font-mono"
@@ -424,9 +474,7 @@ const Index = () => {
             <input
               type="number"
               value={pricePerSqm || ""}
-              onChange={(e) =>
-                setPricePerSqm(parseFloat(e.target.value) || 0)
-              }
+              onChange={(e) => setPricePerSqm(parseFloat(e.target.value) || 0)}
               placeholder="0.00"
               min={0}
               step={0.01}
@@ -450,17 +498,13 @@ const Index = () => {
                 <div className="text-[28px] font-bold text-primary">
                   {result.totalPanels}
                 </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  Pannelli
-                </div>
+                <div className="text-xs text-muted-foreground mt-1">Pannelli</div>
               </div>
               <div className="bg-card border border-border rounded-lg p-4 text-center">
                 <div className="text-[28px] font-bold text-primary">
                   {result.averageUsage}%
                 </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  Utilizzo medio
-                </div>
+                <div className="text-xs text-muted-foreground mt-1">Utilizzo medio</div>
                 <div className="text-xs text-muted-foreground">
                   {totalUsedM2.toFixed(4)} m²
                 </div>
@@ -474,9 +518,7 @@ const Index = () => {
                 <div className="text-[28px] font-bold text-destructive">
                   {avgWaste}%
                 </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  Spreco medio
-                </div>
+                <div className="text-xs text-muted-foreground mt-1">Spreco medio</div>
                 <div className="text-xs text-muted-foreground">
                   {totalWasteM2.toFixed(4)} m²
                 </div>
@@ -496,9 +538,7 @@ const Index = () => {
                 >
                   {result.unplacedPieces.length}
                 </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  Non allocati
-                </div>
+                <div className="text-xs text-muted-foreground mt-1">Non allocati</div>
               </div>
             </div>
 
@@ -510,13 +550,9 @@ const Index = () => {
                 </h3>
                 <ul className="list-none">
                   {result.unplacedPieces.map((u, i) => (
-                    <li
-                      key={i}
-                      className="text-[13px] text-destructive mb-1"
-                    >
+                    <li key={i} className="text-[13px] text-destructive mb-1">
                       {u.piece.width}×{u.piece.height}
-                      {u.piece.name ? ` (${u.piece.name})` : ""} —{" "}
-                      {u.remaining} pz
+                      {u.piece.name ? ` (${u.piece.name})` : ""} — {u.remaining} pz
                     </li>
                   ))}
                 </ul>
@@ -537,16 +573,14 @@ const Index = () => {
             ))}
 
             {/* Save all button */}
-            {result.usedPanels.length > 1 && (
-              <div className="flex justify-center mt-6">
-                <button
-                  onClick={saveAll}
-                  className="bg-primary text-primary-foreground border border-primary font-bold text-sm px-10 py-2.5 rounded tracking-[3px] uppercase hover:bg-primary-dim hover:border-primary-dim transition-all font-mono"
-                >
-                  💾 SALVA TUTTI I PANNELLI
-                </button>
-              </div>
-            )}
+            <div className="flex justify-center mt-6 mb-4">
+              <button
+                onClick={saveAll}
+                className="bg-primary text-primary-foreground border border-primary font-bold text-sm px-10 py-2.5 rounded tracking-[3px] uppercase hover:opacity-90 transition-all font-mono"
+              >
+                💾 SALVA TUTTI I PANNELLI
+              </button>
+            </div>
           </div>
         )}
       </main>
