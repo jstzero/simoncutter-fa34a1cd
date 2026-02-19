@@ -247,9 +247,9 @@ const PanelResult = forwardRef<PanelResultHandle, PanelResultProps>(
 
       return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}" style="background:white">
   <!-- Panel outline -->
-  <rect x="${M}" y="${M}" width="${W}" height="${H}" fill="none" stroke="#999" stroke-width="1"/>
-  <!-- Pieces -->
-  <g>${piecesHTML}</g>
+  <rect x="${M}" y="${M}" width="${W}" height="${H}" fill="none" stroke="#999" stroke-width="1.5"/>
+  <!-- Pieces (offset by margin) -->
+  <g transform="translate(${M}, ${M})">${piecesHTML}</g>
   <!-- Dimension lines -->
   <g>${dimsHTML}</g>
 </svg>`;

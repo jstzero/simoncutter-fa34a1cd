@@ -71,6 +71,21 @@ const Index = () => {
     panelResultRefs.current = [];
   }, [panels, pieces]);
 
+  // Export pieces as CSV
+  const exportPiecesCSV = useCallback(() => {
+    const header = "Larghezza,Altezza,Quota,Nome\n";
+    const rows = pieces
+      .map(p => `${p.width},${p.height},${p.qty},${p.name || ""}`)
+      .join("\n");
+    const blob = new Blob([header + rows], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "pezzi.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [pieces]);
+
   // CSV Import Panels
   const importPanelsCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -362,7 +377,13 @@ const Index = () => {
                   onClick={() => pieceCsvRef.current?.click()}
                   className="text-xs px-3 py-1.5 rounded border border-border bg-transparent text-foreground hover:border-primary hover:text-primary transition-all font-mono"
                 >
-                  CSV
+                  ↑ CSV
+                </button>
+                <button
+                  onClick={exportPiecesCSV}
+                  className="text-xs px-3 py-1.5 rounded border border-border bg-transparent text-foreground hover:border-primary hover:text-primary transition-all font-mono"
+                >
+                  ↓ CSV
                 </button>
                 <button
                   onClick={addPiece}
