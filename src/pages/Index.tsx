@@ -168,7 +168,7 @@ const Index = () => {
     position: relative;
     page-break-after: always;
     overflow: hidden;
-    padding: 6mm 6mm 4mm 6mm;
+    padding: 5mm 5mm 3mm 5mm;
     display: flex;
     flex-direction: column;
   }
@@ -179,13 +179,21 @@ const Index = () => {
     align-items: center;
     font-size: 9pt;
     color: #555;
-    margin-bottom: 4mm;
+    margin-bottom: 3mm;
     flex-shrink: 0;
   }
   .panel-title {
     font-size: 11pt;
     font-weight: bold;
     color: #111;
+  }
+  .page-body {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    gap: 4mm;
+    min-height: 0;
+    overflow: hidden;
   }
   .svg-container {
     flex: 1;
@@ -194,19 +202,70 @@ const Index = () => {
     justify-content: center;
     overflow: hidden;
     min-height: 0;
+    min-width: 0;
   }
   .svg-container img {
-    width: 100%;
-    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
     object-fit: contain;
     display: block;
   }
+  .piece-list {
+    width: 42mm;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    font-size: 6.5pt;
+    color: #222;
+    border-left: 0.3mm solid #ccc;
+    padding-left: 3mm;
+    overflow: hidden;
+  }
+  .piece-list-title {
+    font-size: 7.5pt;
+    font-weight: bold;
+    margin-bottom: 1.5mm;
+    color: #111;
+    border-bottom: 0.3mm solid #ddd;
+    padding-bottom: 1mm;
+  }
+  .piece-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 6pt;
+    flex: 1;
+    overflow: hidden;
+  }
+  .piece-table th {
+    text-align: left;
+    color: #666;
+    font-weight: normal;
+    border-bottom: 0.2mm solid #ddd;
+    padding: 0.5mm 0;
+  }
+  .piece-table td {
+    padding: 0.6mm 0.5mm;
+    border-bottom: 0.15mm solid #eee;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 22mm;
+  }
+  .piece-table tr:nth-child(even) { background: #f8f8f8; }
+  .piece-list-stats {
+    margin-top: 2mm;
+    font-size: 6pt;
+    color: #555;
+    border-top: 0.3mm solid #ddd;
+    padding-top: 1.5mm;
+    line-height: 1.6;
+  }
   .page-footer {
-    font-size: 8pt;
+    font-size: 7.5pt;
     color: #888;
     display: flex;
     justify-content: space-between;
-    margin-top: 3mm;
+    margin-top: 2mm;
     flex-shrink: 0;
   }
   @media print {
@@ -243,6 +302,15 @@ const Index = () => {
       const wasteM2 = (panel.wasteAreaMm2 / 1_000_000).toFixed(3);
       const pageNum = `${i + 1}/${result.usedPanels.length}`;
 
+      const pieceRows = panel.pieces.map((p, pi) =>
+        `<tr>
+          <td>${p.label}</td>
+          <td>${p.name || "—"}</td>
+          <td>${p.width}×${p.height}</td>
+          <td>${p.rotated ? "↻" : ""}</td>
+        </tr>`
+      ).join("");
+
       html += `
 <div class="page">
   <div class="page-header">
@@ -250,9 +318,23 @@ const Index = () => {
     <span class="panel-title">Pannello ${i + 1} — ${panel.stockPanel.width}×${panel.stockPanel.height} mm</span>
     <span>SimonCutter</span>
   </div>
-  <div class="svg-container"><img src="${pngSrc}" style="max-width:100%;max-height:100%;display:block;"/></div>
+  <div class="page-body">
+    <div class="svg-container"><img src="${pngSrc}" /></div>
+    <div class="piece-list">
+      <div class="piece-list-title">Pezzi (${panel.pieces.length})</div>
+      <table class="piece-table">
+        <thead><tr><th>#</th><th>Nome</th><th>Dim.</th><th></th></tr></thead>
+        <tbody>${pieceRows}</tbody>
+      </table>
+      <div class="piece-list-stats">
+        Utilizzo: ${panel.usagePercent}%<br/>
+        ${usedM2} m² usati<br/>
+        ${wasteM2} m² spreco
+      </div>
+    </div>
+  </div>
   <div class="page-footer">
-    <span>Pezzi: ${panel.pieces.length} | Utilizzo: ${panel.usagePercent}% (${usedM2} m²) | Spreco: ${panel.wastePercent}% (${wasteM2} m²)</span>
+    <span>Utilizzo: ${panel.usagePercent}% | Spreco: ${panel.wastePercent}%</span>
     <span>${pageNum}</span>
   </div>
 </div>`;
