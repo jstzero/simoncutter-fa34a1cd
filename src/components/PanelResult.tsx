@@ -43,13 +43,13 @@ function drawPanel(
     ctx.rect(rx + 1, ry + 1, rw - 2, rh - 2);
     ctx.clip();
 
-    const maxFontName = Math.min(rw / (Math.max(p.name?.length || 4, 4) * 0.65), rh / 4, 13);
-    const maxFontDim = Math.min(rw / 7, rh / 5, 11);
-    const fontName = Math.max(maxFontName, 5);
-    const fontDim = Math.max(maxFontDim, 4.5);
+    const maxFontName = Math.min(rw / (Math.max(p.name?.length || 4, 4) * 0.55), rh / 3, 22);
+    const maxFontDim = Math.min(rw / 5.5, rh / 4, 16);
+    const fontName = Math.max(maxFontName, 7);
+    const fontDim = Math.max(maxFontDim, 6);
 
-    const showName = !!p.name && rw > 30 && rh > 20 && fontName >= 5;
-    const showDim = rw > 25 && rh > 15 && fontDim >= 4.5;
+    const showName = !!p.name && rw > 25 && rh > 16 && fontName >= 7;
+    const showDim = rw > 20 && rh > 12 && fontDim >= 6;
     const showRotated = p.rotated && rh > (showName ? fontName * 3 : fontDim * 2.5);
 
     const lineCount = (showName ? 1 : 0) + (showDim ? 1 : 0) + (showRotated ? 1 : 0);
