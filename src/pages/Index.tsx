@@ -148,11 +148,11 @@ const Index = () => {
     const now = new Date();
     const dateStr = now.toLocaleDateString("it-IT") + ", " + now.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
 
-    // Build SVG string for each panel
-    const panelSVGs = panelResultRefs.current
-      .map((r, i) => {
+    // Get PNG data URL for each panel
+    const panelPNGs = panelResultRefs.current
+      .map((r) => {
         if (!r) return null;
-        return r.getSVGString(i);
+        return r.getPNGDataURL();
       })
       .filter(Boolean) as string[];
 
@@ -235,7 +235,7 @@ const Index = () => {
 </div>`;
 
     result.usedPanels.forEach((panel, i) => {
-      const svgContent = panelSVGs[i] || "";
+      const pngSrc = panelPNGs[i] || "";
       const usedM2 = (panel.usedAreaMm2 / 1_000_000).toFixed(3);
       const wasteM2 = (panel.wasteAreaMm2 / 1_000_000).toFixed(3);
       const pageNum = `${i + 1}/${result.usedPanels.length}`;
@@ -245,9 +245,9 @@ const Index = () => {
   <div class="page-header">
     <span>${dateStr}</span>
     <span class="panel-title">Pannello ${i + 1} — ${panel.stockPanel.width}×${panel.stockPanel.height} mm</span>
-    <span>SimonCutter.svg</span>
+    <span>SimonCutter</span>
   </div>
-  <div class="svg-container">${svgContent}</div>
+  <div class="svg-container"><img src="${pngSrc}" style="max-width:100%;max-height:100%;display:block;"/></div>
   <div class="page-footer">
     <span>Pezzi: ${panel.pieces.length} | Utilizzo: ${panel.usagePercent}% (${usedM2} m²) | Spreco: ${panel.wastePercent}% (${wasteM2} m²)</span>
     <span>${pageNum}</span>
