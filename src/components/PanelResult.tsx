@@ -9,7 +9,8 @@ function drawPanel(
   panelW: number,
   panelH: number,
   scale: number,
-  margin: number
+  margin: number,
+  fontScale = 1
 ) {
   const W = panelW * scale;
   const H = panelH * scale;
@@ -43,13 +44,13 @@ function drawPanel(
     ctx.rect(rx + 1, ry + 1, rw - 2, rh - 2);
     ctx.clip();
 
-    const maxFontName = Math.min(rw / (Math.max(p.name?.length || 4, 4) * 0.55), rh / 3, 22);
-    const maxFontDim = Math.min(rw / 5.5, rh / 4, 16);
-    const fontName = Math.max(maxFontName, 7);
-    const fontDim = Math.max(maxFontDim, 6);
+    const maxFontName = Math.min(rw / (Math.max(p.name?.length || 4, 4) * 0.55), rh / 3, 22 * fontScale);
+    const maxFontDim = Math.min(rw / 5.5, rh / 4, 16 * fontScale);
+    const fontName = Math.max(maxFontName, 7 * fontScale);
+    const fontDim = Math.max(maxFontDim, 6 * fontScale);
 
-    const showName = !!p.name && rw > 25 && rh > 16 && fontName >= 7;
-    const showDim = rw > 20 && rh > 12 && fontDim >= 6;
+    const showName = !!p.name && rw > 25 && rh > 16 && fontName >= 5;
+    const showDim = rw > 20 && rh > 12 && fontDim >= 4;
     const showRotated = p.rotated && rh > (showName ? fontName * 3 : fontDim * 2.5);
 
     const lineCount = (showName ? 1 : 0) + (showDim ? 1 : 0) + (showRotated ? 1 : 0);
@@ -88,8 +89,8 @@ function drawPanel(
 
     const midX = (x1 + x2) / 2;
     const midY = (y1 + y2) / 2;
-    const fontSize = Math.min(8, Math.max(5.5, len * 0.12));
-    const tickSize = 3.5;
+    const fontSize = Math.min(10 * fontScale, Math.max(6 * fontScale, len * 0.12));
+    const tickSize = 3.5 * fontScale;
 
     ctx.strokeStyle = "#aaa";
     ctx.lineWidth = 0.5;
@@ -189,25 +190,25 @@ const PanelResult = forwardRef<PanelResultHandle, PanelResultProps>(
     );
 
     // Render to canvas
-    const renderCanvas = useCallback((cvs: HTMLCanvasElement, s: number, m: number) => {
+    const renderCanvas = useCallback((cvs: HTMLCanvasElement, s: number, m: number, fScale = 1) => {
       const W = panel.stockPanel.width * s;
       const H = panel.stockPanel.height * s;
       cvs.width = W + m * 2;
       cvs.height = H + m * 2;
       const ctx = cvs.getContext("2d");
       if (!ctx) return;
-      drawPanel(ctx, panel.pieces, panel.stockPanel.width, panel.stockPanel.height, s, m);
+      drawPanel(ctx, panel.pieces, panel.stockPanel.width, panel.stockPanel.height, s, m, fScale);
     }, [panel]);
 
     useEffect(() => {
       const cvs = canvasRef.current;
       if (!cvs) return;
-      renderCanvas(cvs, scale, MARGIN);
+      renderCanvas(cvs, scale, MARGIN, 1);
       setPngDataUrl(cvs.toDataURL("image/png"));
     }, [renderCanvas, scale]);
 
     const getPNGDataURL = useCallback((): string => {
-      // High-res for PDF (2× scale for sharpness)
+      // High-res for PDF (2× scale for sharpness, 2× font scale for readability)
       const pdfMaxW = 1400;
       const pdfMaxH = 920;
       const pdfScale = Math.min(
@@ -216,7 +217,7 @@ const PanelResult = forwardRef<PanelResultHandle, PanelResultProps>(
         2.0
       );
       const offscreen = document.createElement("canvas");
-      renderCanvas(offscreen, pdfScale, MARGIN * 2);
+      renderCanvas(offscreen, pdfScale, MARGIN * 2, 2);
       return offscreen.toDataURL("image/png");
     }, [renderCanvas, panel]);
 
