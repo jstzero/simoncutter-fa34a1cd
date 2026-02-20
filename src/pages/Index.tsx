@@ -168,7 +168,7 @@ const Index = () => {
     position: relative;
     page-break-after: always;
     overflow: hidden;
-    padding: 8mm 8mm 8mm 8mm;
+    padding: 6mm 6mm 4mm 6mm;
     display: flex;
     flex-direction: column;
   }
@@ -193,10 +193,13 @@ const Index = () => {
     align-items: center;
     justify-content: center;
     overflow: hidden;
+    min-height: 0;
   }
-  .svg-container svg {
-    max-width: 100%;
-    max-height: 100%;
+  .svg-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
   }
   .page-footer {
     font-size: 8pt;
