@@ -20,6 +20,7 @@ const Index = () => {
   const panelCsvRef = useRef<HTMLInputElement>(null);
   const pieceCsvRef = useRef<HTMLInputElement>(null);
 
+  const [perimeterKey, setPerimeterKey] = useState(0);
   const totalPieceCount = pieces.reduce((s, p) => s + p.qty, 0);
 
   // Panel CRUD
@@ -546,8 +547,14 @@ const Index = () => {
                 </div>
               ))}
             </div>
-            <div className="mt-2 px-1 text-[13px] font-bold text-foreground text-right border-t border-border pt-2">
-              Perimetro totale: {pieces.reduce((sum, p) => sum + 2 * (p.width + p.height) * p.qty, 0)} mm
+            <div key={perimeterKey} className="mt-2 px-1 text-[13px] font-bold text-foreground text-right border-t border-border pt-2 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setPerimeterKey(k => k + 1)}
+                className="text-[11px] px-2 py-1 rounded border border-border bg-transparent text-muted-foreground hover:border-primary hover:text-primary transition-all font-mono"
+              >
+                ⟳ Aggiorna perimetri
+              </button>
+              <span>Perimetro totale: {pieces.reduce((sum, p) => sum + 2 * (p.width + p.height) * p.qty, 0)} mm</span>
             </div>
             <div className="mt-3 flex justify-end gap-2 flex-wrap">
               <button
