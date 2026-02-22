@@ -479,20 +479,21 @@ const Index = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-[36px_minmax(60px,1fr)_1fr_1fr_60px_40px_32px] gap-2 text-[11px] text-muted-foreground px-1 mb-1">
+            <div className="grid grid-cols-[36px_minmax(60px,1fr)_1fr_1fr_60px_40px_80px_32px] gap-2 text-[11px] text-muted-foreground px-1 mb-1">
               <span>#</span>
               <span>Nome</span>
               <span>Larghezza</span>
               <span>Altezza</span>
               <span>Qta</span>
               <span>Rot.</span>
+              <span>Perimetro</span>
               <span></span>
             </div>
             <div className="max-h-[400px] overflow-y-auto pr-1">
               {pieces.map((p, i) => (
                 <div
                   key={i}
-                  className="grid grid-cols-[36px_minmax(60px,1fr)_1fr_1fr_60px_40px_32px] gap-2 items-center mb-1.5"
+                  className="grid grid-cols-[36px_minmax(60px,1fr)_1fr_1fr_60px_40px_80px_32px] gap-2 items-center mb-1.5"
                 >
                   <span className="text-[11px] text-muted-foreground text-center">
                     {i + 1}
@@ -532,6 +533,9 @@ const Index = () => {
                   >
                     ↻
                   </button>
+                  <span className="text-[12px] text-muted-foreground text-center font-mono">
+                    {2 * (p.width + p.height)}
+                  </span>
                   <button
                     onClick={() => removePiece(i)}
                     disabled={pieces.length <= 1}
@@ -541,6 +545,9 @@ const Index = () => {
                   </button>
                 </div>
               ))}
+            </div>
+            <div className="mt-2 px-1 text-[13px] font-bold text-foreground text-right border-t border-border pt-2">
+              Perimetro totale: {pieces.reduce((sum, p) => sum + 2 * (p.width + p.height) * p.qty, 0)} mm
             </div>
             <div className="mt-3 flex justify-end gap-2 flex-wrap">
               <button
